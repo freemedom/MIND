@@ -1,3 +1,21 @@
+"""
+SSR pipeline for multimodal retrieval with CLIP.
+
+Logic overview:
+1) Load a CLIP model and choose CUDA/CPU automatically.
+2) Read test/train JSONL files for each dataset.
+3) Build one fused embedding per item (text + 4 * image) / 5.
+4) Compute cosine similarities between every test item and every train item.
+5) For each test item, keep top-k positive matches and save to JSONL.
+
+Output format (one line per test sample):
+{
+  "index": <test_index>,
+  "samples": [<train_index_1>, ...],
+  "scores": [<similarity_1>, ...]
+}
+"""
+
 import os
 import torch
 import clip
@@ -21,8 +39,16 @@ model.eval()
 
 def process_clip_embeddings(dataset_name: str, k: int = 10):
     """
-    Processes CLIP embeddings for a given dataset, calculates similarity scores,
+        Processes CLIP embeddings for a given dataset, calculates similarity scores,
     and saves the top-k similar samples.
+    Process one dataset end-to-end and store top-k train neighbors for each test item.
+
+    Steps:
+    - load dataset files
+    - encode text/image with CLIP
+    - fuse image-text features
+    - compute cosine similarity matrix
+    - export top-k indices and scores as JSONL
     """
     print(f"\n--- Processing dataset: {dataset_name} ---")
 
@@ -41,6 +67,7 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
 
     print(f"Loaded {len(test_data)} test items and {len(train_data)} train items for {dataset_name}.")
 
+    # Embeddings for test items (query side).
     embeddings = []
     print(f"Generating embeddings for {dataset_name} test data...")
     for idx, item in tqdm(enumerate(test_data), total=len(test_data), desc="Test Embeddings"):
@@ -68,9 +95,11 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
             image_features = model.encode_image(processed_image).squeeze().detach().cpu().numpy()
             text_features = model.encode_text(tokenized_text).squeeze().detach().cpu().numpy()
 
+        # Weighted fusion: image contributes 4x more than text.
         embedding = (text_features + image_features * 4) / 5
         embeddings.append(embedding)
 
+    # Embeddings for train items (reference/candidate side).
     ref_embeddings = []
     print(f"Generating embeddings for {dataset_name} train data...")
     for idx, item in tqdm(enumerate(train_data), total=len(train_data), desc="Train Embeddings"):
@@ -98,6 +127,7 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
             image_features = model.encode_image(processed_image).squeeze().detach().cpu().numpy()
             text_features = model.encode_text(tokenized_text).squeeze().detach().cpu().numpy()
 
+        # Keep the same fusion rule for test/train consistency.
         embedding = (text_features + image_features * 4) / 5
         ref_embeddings.append(embedding)
 
@@ -111,6 +141,7 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
     print(f"Calculating similarity scores for {dataset_name}...")
     similarity_scores = np.zeros((len(embeddings_np), len(ref_embeddings_np)))
 
+    # Cosine similarity = dot(a, b) / (||a|| * ||b||), vectorized for speed.
     dot_products = np.dot(embeddings_np, ref_embeddings_np.T)
     norms_embeddings = norm(embeddings_np, axis=1, keepdims=True)
     norms_ref_embeddings = norm(ref_embeddings_np, axis=1, keepdims=True).T
@@ -118,7 +149,9 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
     norms_embeddings[norms_embeddings == 0] = 1
     norms_ref_embeddings[norms_ref_embeddings == 0] = 1
     similarity_scores = dot_products / (norms_embeddings * norms_ref_embeddings)
+    # Numerical safety: keep values in valid cosine range.
     similarity_scores = np.clip(similarity_scores, -1.0, 1.0)
+    # Exclude exact self-like/perfect matches from candidate selection.
     similarity_scores[similarity_scores >= 1.0] = 0.0
     
     # Deep copy the similarity_scores array to prevent modification issues during top-k extraction
@@ -132,6 +165,7 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
         scores = []
         current_scores = similarity_scores_copy[i]
 
+        # Greedy top-k extraction without replacement for the current test item.
         for _ in range(k):
             if np.max(current_scores) <= 0:
                 break
