@@ -35,6 +35,8 @@ print(f"Using device: {device}")
 
 # Load the CLIP model and preprocessor
 model, preprocess = clip.load("ViT-L/14@336px", device=device)
+# Put CLIP in evaluation mode so embedding extraction is deterministic and stable:
+# training-time behavior (e.g., dropout and BatchNorm updates) is disabled for inference.
 model.eval()
 
 def process_clip_embeddings(dataset_name: str, k: int = 10):
@@ -190,6 +192,6 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
     print(f"--- Finished processing {dataset_name} ---")
 
 if __name__ == "__main__":
-    datasets_to_process = ["FHM", "HarM", "MAMI"]
+    datasets_to_process = ["FHM"] # , "HarM", "MAMI"
     for dataset in datasets_to_process:
         process_clip_embeddings(dataset)

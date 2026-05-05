@@ -1,3 +1,21 @@
+"""
+RID pipeline for iterative rule induction with LLaVA.
+
+Logic overview:
+1) Load train data and precomputed SSR neighbors for a dataset.
+2) For each test item, select top-N related train samples from SSR output.
+3) Iterate through those samples and repeatedly prompt LLaVA to update rules.
+4) Run induction in both forward and reversed sample orders for robustness.
+5) Save one JSONL line per test item with forward/backward induced rules.
+
+Output format (one line per test sample):
+{
+  "index": <test_index>,
+  "forward": "<rules induced in forward order>",
+  "backward": "<rules induced in reverse order>"
+}
+"""
+
 import os
 import numpy as np
 import torch
@@ -41,7 +59,7 @@ if torch.cuda.is_available():
 random.seed(42)
 
 def get_model_res(prompt: str, image_path: str):
-    """Calls the LLaVA model proxy to get a response."""
+    """Call the LLaVA proxy with one image-text prompt and return raw text output."""
     args.image_file = image_path
     args.query = prompt
     _, response = llava_proxy.run_model(args)
@@ -51,6 +69,13 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
     """
     Processes Rule Induction and Derivation (RID) for a given dataset.
     Uses a ssr approach to generate and refine rules based on similar memes.
+        Run Rule Induction and Derivation (RID) for one dataset.
+
+    Process:
+    - read train data + SSR retrieval results
+    - choose a fixed number of related train examples per test item
+    - iteratively refine rules with LLaVA prompts
+    - store rules from forward and reverse induction orders
     """
     print(f"\n--- Starting RID generation for dataset: {dataset_name} ---")
 
@@ -62,7 +87,7 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
 
     os.makedirs(os.path.dirname(rid_result_path), exist_ok=True)
 
-    # Load ref data
+    # Load train/reference items used as analogical examples.
     try:
         train_data = [json.loads(line) for line in open(train_jsonl_path, 'r').readlines()]
         print(f"Loaded {len(train_data)} train items for {dataset_name}.")
@@ -73,7 +98,7 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
         print(colored(f"Error: Could not decode JSON from {train_jsonl_path}. Skipping {dataset_name}.", 'red'))
         return
 
-    # Load ssr results
+    # Load SSR results mapping each test item to similar train indices.
     try:
         ssr_lines = [json.loads(line) for line in open(ssr_result_path, 'r').readlines()]
         print(f"Loaded {len(ssr_lines)} ssr results from {ssr_result_path}.")
@@ -86,6 +111,11 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
 
     def get_analog_rules(indices_to_use: list):
         """Iteratively generates and refines rules based on a sequence of related memes."""
+                """
+        Induce rules by traversing selected train indices in order.
+
+        The model receives current rules + current sample and returns "Updated rules:".
+        """
         rules = "No rules yet."
         for idx in indices_to_use:
             if 0 <= idx < len(train_data):
@@ -98,6 +128,7 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
 
                 image_file_path = os.path.join(image_base_path, image_file_name)
 
+                # Inject current text and accumulated rules into the RID prompt template.
                 input_prompt = RID_prompt.format(
                     org_sent=text_content,
                     rules=rules
@@ -110,6 +141,7 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
                 print(colored(f"\n--- LLaVA Output for ssr index {idx} ---", 'blue'))
                 print(colored(response, 'blue'))
 
+                # Parse only the rule section; keep previous rules if the marker is absent.
                 if "Updated rules:" in response:
                     rules = response.split("Updated rules:", 1)[-1].strip()
                 else:
@@ -118,7 +150,7 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
                 print(colored(f"Warning: ssr index {idx} out of bounds. Skipping.", 'yellow'))
         return rules
 
-    # Continuation logic for interrupted runs
+    # Continuation logic: resume from existing output length if a run was interrupted.
     start_idx = 0
     if os.path.exists(rid_result_path):
         with open(rid_result_path, 'r') as f_read:
@@ -128,13 +160,14 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
                 ssr_lines = ssr_lines[start_idx:]
                 print(colored(f'Continuing RID generation from index: {start_idx}', 'cyan'))
 
-    # Main loop for processing each test item's ssr results
+    # Main loop: build forward/backward rules for each test sample.
     with open(rid_result_path, 'a') as f_write:
         for idx_offset, item in enumerate(ssr_lines):
             current_test_index = item['index']
             absolute_idx = idx_offset + start_idx
 
             # Use 'samples' key from previous script's output, fallback to 'example'
+            # Prefer current SSR schema ('samples'); keep backward compatibility ('example').
             if 'samples' in item and len(item['samples']) >= num_ssr_examples:
                 examples = item['samples'][:num_ssr_examples]
             elif 'example' in item and len(item['example']) >= num_ssr_examples:
@@ -143,6 +176,7 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
                 print(colored(f"Warning: Not enough ssr samples for index {absolute_idx}. Skipping.", 'yellow'))
                 continue
 
+            # Reversed order provides a second rule set less sensitive to sample ordering.
             reversed_examples = examples[::-1]
 
             print(f"\nProcessing test item {current_test_index} (ssr list index {absolute_idx})...")

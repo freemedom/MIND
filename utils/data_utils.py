@@ -3,7 +3,7 @@
 DATASET_CONFIGS = {
     "FHM": {
         "image_key": "img",
-        "text_key": "org_sent",
+        "text_key": "text",
         "label_key": "label",
         "label_mapping": None
     },
