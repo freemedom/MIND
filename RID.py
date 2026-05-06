@@ -59,10 +59,25 @@ if torch.cuda.is_available():
 random.seed(42)
 
 def get_model_res(prompt: str, image_path: str):
-    """Call the LLaVA proxy with one image-text prompt and return raw text output."""
+    """
+    Run one inference call through the shared LLaVA proxy.
+
+    Parameters:
+    - prompt: The textual instruction/question passed to the model.
+    - image_path: Local path of the image paired with the prompt.
+
+    Notes:
+    - This helper mutates the global `args` object so the proxy receives
+      the current image and query.
+    - The proxy returns a tuple; we keep only the text response.
+    """
+    # Bind the current image to the shared argument container.
     args.image_file = image_path
+    # Bind the current text prompt to the same container.
     args.query = prompt
+    # Execute model inference; ignore the first return value and keep response text.
     _, response = llava_proxy.run_model(args)
+    # Return raw model output for downstream parsing/usage.
     return response
 
 def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):

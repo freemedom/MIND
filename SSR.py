@@ -61,8 +61,8 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
     result_path = f"SSR/{dataset_name}_SSR.jsonl"
 
     try:
-        test_data = [json.loads(line) for line in open(test_jsonl_path, 'r').readlines()]
-        train_data = [json.loads(line) for line in open(train_jsonl_path, 'r').readlines()]
+        test_data = [json.loads(line) for line in open(test_jsonl_path, 'r', encoding='utf-8').readlines()]
+        train_data = [json.loads(line) for line in open(train_jsonl_path, 'r', encoding='utf-8').readlines()]
     except FileNotFoundError as e:
         print(f"Error: Data files not found for {dataset_name}. Missing file: {e.filename}")
         return
@@ -184,7 +184,7 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
         })
 
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
-    with open(result_path, "w") as f:
+    with open(result_path, "w", encoding='utf-8') as f:
         for result_item in results:
             json.dump(result_item, f)
             f.write("\n")
@@ -192,6 +192,6 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
     print(f"--- Finished processing {dataset_name} ---")
 
 if __name__ == "__main__":
-    datasets_to_process = ["FHM"] # , "HarM", "MAMI"
+    datasets_to_process = ["FHM"] # ,"HarM" , "MAMI"
     for dataset in datasets_to_process:
         process_clip_embeddings(dataset)
