@@ -5,7 +5,7 @@ DATASET_CONFIGS = {
         "image_key": "img",
         "text_key": "text",
         "label_key": "label",
-        "label_mapping": None
+        "label_mapping": None # img/我手动替换掉了
     },
     "HarM": {
         "image_key": "image",

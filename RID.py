@@ -181,13 +181,24 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
             current_test_index = item['index']
             absolute_idx = idx_offset + start_idx
 
-            # Use 'samples' key from previous script's output, fallback to 'example'
+
+            # Use 'samples' key from previous script's output, fallback to  'example'
             # Prefer current SSR schema ('samples'); keep backward compatibility ('example').
+            # Each `item` is one SSR record for a test sample, typically shaped like:
+            # {"index": <test_id>, "samples": [train_id1, train_id2, ...], "scores": [...]}
+            #
+            # We need exactly `num_ssr_examples` retrieved train indices to build RID prompts.
+            # 1) Prefer `samples` (current SSR schema used by SSR.py).
+            # 2) Fallback to `example` (legacy/older schema compatibility).
+            # 3) If neither key has enough entries, skip this test item safely.
             if 'samples' in item and len(item['samples']) >= num_ssr_examples:
+                # Keep only the first N nearest neighbors (already sorted by retrieval score).
                 examples = item['samples'][:num_ssr_examples]
             elif 'example' in item and len(item['example']) >= num_ssr_examples:
+                # Legacy field name, handled for backward compatibility with old result files.
                 examples = item['example'][:num_ssr_examples]
             else:
+                # No usable SSR neighbors -> cannot continue RID induction for this sample.
                 print(colored(f"Warning: Not enough ssr samples for index {absolute_idx}. Skipping.", 'yellow'))
                 continue
 
