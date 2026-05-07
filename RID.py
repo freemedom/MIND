@@ -126,7 +126,7 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
 
     def get_analog_rules(indices_to_use: list):
         """Iteratively generates and refines rules based on a sequence of related memes."""
-                """
+        """
         Induce rules by traversing selected train indices in order.
 
         The model receives current rules + current sample and returns "Updated rules:".
@@ -225,7 +225,7 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
 
 # --- Main execution for all datasets ---
 if __name__ == "__main__":
-    datasets_to_process = ["FHM", "HarM", "MAMI"]
+    datasets_to_process = ["FHM"] # , "HarM", "MAMI"
 
     for dataset in datasets_to_process:
         process_rid_generation(dataset)
