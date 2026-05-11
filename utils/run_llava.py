@@ -84,7 +84,7 @@ class run_proxy():
         self.model_name = get_model_name_from_path(model_path)
         # Load tokenizer, model, visual preprocessor, and context length together.
         self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
-            model_path, model_base, self.model_name
+            model_path, model_base, self.model_name, load_8bit=True
         )
 
     def run_model(self, args, only_encode_images=False):
