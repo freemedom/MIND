@@ -225,7 +225,7 @@ def process_rid_generation(dataset_name: str, num_ssr_examples: int = 3):
 
 # --- Main execution for all datasets ---
 if __name__ == "__main__":
-    datasets_to_process = ["HarM"] # , "FHM", "MAMI"
+    datasets_to_process = ["HarM", "FHM", "MAMI"] # 
 
     for dataset in datasets_to_process:
         process_rid_generation(dataset)
