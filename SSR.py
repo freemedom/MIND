@@ -192,6 +192,6 @@ def process_clip_embeddings(dataset_name: str, k: int = 10):
     print(f"--- Finished processing {dataset_name} ---")
 
 if __name__ == "__main__":
-    datasets_to_process = ["MAMI"] # ,"HarM" , "FHM"
+    datasets_to_process = ["MAMI", "HarM", "FHM"] # 
     for dataset in datasets_to_process:
         process_clip_embeddings(dataset)
