@@ -1,3 +1,7 @@
+# 
+
+论文里的Gemini-1.5-Flash代码里没有
+
 # MIND
 The official pytorch implement of - **MIND: A Multi-agent Framework for Zero-shot Harmful Meme Detection**.
 
@@ -107,6 +111,41 @@ MIND/
 │       └── train.jsonl
 └── ...
 ```
+
+## MAMI `training.csv` analysis
+
+Quick profile of `data/MAMI/training.csv` (tab-separated file):
+
+- **Rows:** 10,000
+- **Columns:** `file_name`, `misogynous`, `shaming`, `stereotype`, `objectification`, `violence`, `Text Transcription`
+
+Label distribution:
+
+- **`misogynous=1`:** 5,000
+- **`misogynous=0`:** 5,000
+- The primary label is perfectly balanced (50/50).
+
+Subtype counts (multi-label dimensions):
+
+- **`shaming`:** 1,274
+- **`stereotype`:** 2,810
+- **`objectification`:** 2,202
+- **`violence`:** 953
+
+Additional observations:
+
+- **Rows with all subtype flags = 0:** 5,244  
+  (includes non-misogynous rows and misogynous rows without subtype annotation)
+- **Rows with more than one subtype active:** 1,863  
+  (confirms non-trivial co-occurrence among subtype labels)
+- **Empty `file_name`:** 0
+- **Empty `Text Transcription`:** 0
+- **Maximum text length:** 1,654 characters
+
+Practical implication for this repo:
+
+- The file is clean and complete enough for conversion to the project JSONL format.
+- Because subtype columns are sparse and overlapping, they are best treated as auxiliary signals, while `misogynous` remains the main binary target used by the current pipeline.
 
 ## Quick Start
 

@@ -16,6 +16,8 @@ Output format (one line per test sample):
 }
 """
 
+# There is no configurable GPU inference batch size in RID.py, and inference is always batch=1 (called one by one).
+
 import os
 import numpy as np
 import torch
