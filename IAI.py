@@ -307,7 +307,7 @@ def process_iai_evaluation(dataset_name: str):
 
 
 if __name__ == "__main__":
-    datasets_to_process = ["HarM"] # "FHM", , "MAMI"
+    datasets_to_process = ["HarM", "FHM", "MAMI"]
 
     for dataset in datasets_to_process:
         process_iai_evaluation(dataset)

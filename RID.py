@@ -3,10 +3,36 @@ RID pipeline for iterative rule induction with LLaVA.
 
 Logic overview:
 1) Load train data and precomputed SSR neighbors for a dataset.
-2) For each test item, select top-N related train samples from SSR output.
+2) For each test item, select top-N related train samples from SSR output
+   (default num_ssr_examples=3).
 3) Iterate through those samples and repeatedly prompt LLaVA to update rules.
 4) Run induction in both forward and reversed sample orders for robustness.
 5) Save one JSONL line per test item with forward/backward induced rules.
+
+How "update rules" works (get_analog_rules):
+- Rules are NOT edited as structured objects in Python. Update means:
+  feed the current rules string + one related meme (image+text) to LLaVA,
+  then overwrite the local `rules` variable with the model's new text.
+- Start: rules = "No rules yet."
+- For each SSR neighbor in order (e.g. forward [A,B,C]):
+    1) Fill RID_prompt with org_sent=meme text and rules=current rules.
+    2) Call LLaVA once (batch size always 1).
+    3) If response contains "Updated rules:", take the text AFTER that marker
+       as the new rules; else keep the previous rules unchanged.
+    4) Proceed to the next neighbor with the overwritten rules string.
+- Example (forward neighbors [A,B,C]):
+    rules0="No rules yet." -> +A -> rules1 -> +B -> rules2 -> +C -> rules3
+    (rules3 is what gets saved as "forward")
+- Backward uses the reversed neighbor order [C,B,A] in a separate induction
+  pass and saves that final string as "backward".
+
+What RID_prompt asks the model to do (utils/prompts.py):
+- Output three sections: Thought / Operations of updating existing rules /
+  Updated rules. Code only parses the third section.
+- May add / edit / remove existing rules (prompt limits operations); final
+  rules must be GENERAL and HIGH LEVEL, at most five concise rules.
+- Distill insights for assessing *similar* memes; do not merely label the
+  related meme currently shown as harmful/harmless.
 
 Output format (one line per test sample):
 {
@@ -14,6 +40,9 @@ Output format (one line per test sample):
   "forward": "<rules induced in forward order>",
   "backward": "<rules induced in reverse order>"
 }
+
+Resume: if RID/{Dataset}_RID.jsonl already exists, skip the first
+len(file) SSR rows and append new lines (per completed test item).
 """
 
 # There is no configurable GPU inference batch size in RID.py, and inference is always batch=1 (called one by one).
